@@ -1,8 +1,11 @@
+# Import WordNet corpus from NLTK library
 from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords
 from bert_module import get_embeddings, emb_similarity
+from utilities import get_intersection
 
 stopWords = list(set(stopwords.words('english')))
+
 
 def remove_special_chars(txt):
     spChars = ',.<>/?`~-_()*&^%$#@][{};:\'"'
@@ -13,11 +16,12 @@ def remove_special_chars(txt):
     return res
 
 
+# Get all meanings of a word
 def get_meanings(word):
-    synsets = wn.synsets(word)
+    synsets = wn.synsets(word)  # Get all Synset objects related to the word
     meanings = []
     for synset in synsets:
-        meanings.append(synset.definition())
+        meanings.append(synset.definition())  # Add the definition of each Synset to the list of meanings
     return meanings
 
 
@@ -25,17 +29,25 @@ def get_coordinates(synset):
     coordinates = []
     hypernyms = synset.hypernyms()
     for hypern in hypernyms:
-        hyponyms = synset.hyponyms()
+        hyponyms = hypern.hyponyms()
         for hyponym in hyponyms:
             coordinates.append(hyponym)
     return coordinates
 
 
-def get_parents(word):
-    synsets = wn.synsets(word)
+def get_parent(synset):
+    parents = []
+    hypernyms = synset.hypernyms()
+    for hypernym in hypernyms:
+        parents.append(hypernym.lemma_names())
+    return parents
+
+# Get all parent synsets of a word
+def get_parents_of_all_meanings(word):
+    synsets = wn.synsets(word)  # Get all Synset objects related to the word
     parents = []
     for synset in synsets:
-        hypernyms = synset.hypernyms()
+        hypernyms = synset.hypernyms()  # Get all hypernym Synset objects of the Synset
         for hypernym in hypernyms:
             parents.append(hypernym.lemma_names())
     return parents
@@ -92,15 +104,18 @@ def try_disambiguate():
               + 'SELECTED MEANING = ' + syn.definition() + '\n')
 # try_disambiguate()
 
+
 # todo: testing Get Related Bag of Words
 def try_get_related_words():
-    syn = disambiguate('computer', 'machine that can programmed to perform computations on data')
+    syn = disambiguate('program', 'an algorithm, or program or code that is implemented in some programming language to run its code on a computer')
     coordinates = get_coordinates(syn)
     bow = get_related_words(syn)
+    all_other = []
     for coordinate in coordinates:
         more_words = get_related_words(coordinate)
-        for w in more_words:
-            bow.append(w)
+        all_other.append(more_words)
+    intersection = get_intersection(all_other)
+    bow = list(set(bow + intersection))
     for w in bow:
         print(w)
 try_get_related_words()
