@@ -12,7 +12,21 @@ model = BertModel.from_pretrained("bert-large-uncased")
 tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
 
-def similarity(text1, text2):
+def get_embeddings(text):
+    inputs = tokenizer(text, return_tensors="pt")
+    # Compute the embeddings
+    with torch.no_grad():
+        outputs = model(**inputs)
+    embeddings = outputs.last_hidden_state[:, 0, :]
+    return embeddings
+
+
+def emb_similarity(embeddings1, embeddings2):
+    cosine_similarity = cos(embeddings1, embeddings2)
+    return cosine_similarity.item()
+
+
+def text_similarity(text1, text2):
     # Tokenize the input texts
     inputs1 = tokenizer(text1, return_tensors="pt")
     inputs2 = tokenizer(text2, return_tensors="pt")
@@ -28,3 +42,4 @@ def similarity(text1, text2):
     cosine_similarity = cos(embeddings1, embeddings2)
 
     return cosine_similarity.item()
+
