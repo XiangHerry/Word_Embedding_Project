@@ -1,4 +1,8 @@
 # Import WordNet corpus from NLTK library
+import nltk
+nltk.download('stopwords')
+from sklearn.metrics.pairwise import cosine_similarity
+
 from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords
 from bert_module import get_embeddings, emb_similarity
@@ -16,14 +20,6 @@ def remove_special_chars(txt):
     return res
 
 
-# Get all meanings of a word
-def get_meanings(word):
-    synsets = wn.synsets(word)  # Get all Synset objects related to the word
-    meanings = []
-    for synset in synsets:
-        meanings.append(synset.definition())  # Add the definition of each Synset to the list of meanings
-    return meanings
-
 
 def get_coordinates(synset):
     coordinates = []
@@ -34,35 +30,67 @@ def get_coordinates(synset):
             coordinates.append(hyponym)
     return coordinates
 
+# original version of get_related words method.
+# def get_related_words(synset, similarity_threshold=0.7):
+#     all_text_list = [synset.definition()]
+#     related_synsets = synset.hypernyms() + synset.hyponyms() + synset.part_meronyms() + synset.part_holonyms()
+#     related_words = []
+#     related_definitions = []
+#     for rsyn in related_synsets:
+#         all_text_list.append(rsyn.definition())
+#         related_definitions.append(rsyn.definition())
+#         all_text = ' '.join(all_text_list)
+#         tokens = (remove_special_chars(all_text)).split()
+#         bestSim1 = 0
+#         related_words = []
+#         related_syn_token = (rsyn.lemma_names()[0]).replace('_', ' ')
+#         sim2 = emb_similarity(get_embeddings(rsyn.definition()), get_embeddings(synset.definition()))
+#         for token in tokens:
+#             if token not in stopWords and len(token) > 2:
+#                 sim1 = emb_similarity(get_embeddings(token), get_embeddings(related_syn_token))
+#                 sim = 0.6 * sim1 + 0.4 * sim2
+#                 if sim > similarity_threshold:
+#                     if token not in related_words:
+#                         related_words.append(token)
+#                     if related_syn_token not in related_words:
+#                         related_words.append(related_syn_token)
+#     return related_words
 
-def get_parent(synset):
-    parents = []
-    hypernyms = synset.hypernyms()
-    for hypernym in hypernyms:
-        parents.append(hypernym.lemma_names())
-    return parents
-
-# Get all parent synsets of a word
-def get_parents_of_all_meanings(word):
-    synsets = wn.synsets(word)  # Get all Synset objects related to the word
-    parents = []
-    for synset in synsets:
-        hypernyms = synset.hypernyms()  # Get all hypernym Synset objects of the Synset
-        for hypernym in hypernyms:
-            parents.append(hypernym.lemma_names())
-    return parents
-
-
-# given some meaning, get a bag of related words
-def get_related_words(synset):
-    all_text_list = [synset.definition()]
-    hypernyms = synset.hypernyms()
-    for hypern in hypernyms:
-        all_text_list.append(hypern.definition())
-    all_text = ' '.join(all_text_list)
-    tokens = (remove_special_chars(all_text)).split()
-    bow = [w for w in tokens if w not in stopWords and len(w) > 2]
-    return bow
+def get_related_words(synset, context, similarity_threshold=0.7):
+    context_embedding = get_embeddings(context)
+    # Get the related synsets (hypernyms, hyponyms, part meronyms, part holonyms)
+    related_synsets = (
+            synset.hypernyms() + synset.hyponyms() + synset.part_meronyms() + synset.part_holonyms())
+    # Initialize the list of related words
+    related_words = []
+    # Iterate through the related synsets
+    for rsyn in related_synsets:
+        # Get the first lemma name for the related synset and replace underscores with spaces
+        related_syn_token = (rsyn.lemma_names()[0]).replace('_', ' ')
+        # Calculate the cosine similarity between the related synset definition and context embeddings
+        sim2 = cosine_similarity(get_embeddings(rsyn.definition()).reshape(1, -1), context_embedding.reshape(1, -1))[0][
+            0]
+        # Remove special characters and split the related synset definition into tokens
+        tokens = (remove_special_chars(rsyn.definition())).split()
+        # Iterate through the tokens
+        for token in tokens:
+            # Check if the token is not a stopword and its length is greater than 2
+            if token not in stopWords and len(token) > 2:
+                # Calculate the cosine similarity between the token and related synset token embeddings
+                sim1 = cosine_similarity(get_embeddings(token).reshape(1, -1),
+                                         get_embeddings(related_syn_token).reshape(1, -1))[0][0]
+                # Calculate the final similarity value by combining sim1 and sim2 with different weights
+                sim = 0.55 * sim1 + 0.45 * sim2
+                # Check if the final similarity value is greater than the similarity threshold
+                if sim > similarity_threshold:
+                    # Add the token to the related_words list if it's not already there
+                    if token not in related_words:
+                        related_words.append(token)
+                    # Add the related_syn_token to the related_words list if it's not already there
+                    if related_syn_token not in related_words:
+                        related_words.append(related_syn_token)
+    # Return the list of related words
+    return related_words
 
 
 def disambiguate(word, context):
@@ -107,12 +135,15 @@ def try_disambiguate():
 
 # todo: testing Get Related Bag of Words
 def try_get_related_words():
-    syn = disambiguate('program', 'an algorithm, or program or code that is implemented in some programming language to run its code on a computer')
+    # syn = disambiguate('check', 'examine (something) in order to determine its accuracy, quality, or condition, or to detect the presence of something.')
+    # syn = disambiguate('computer', 'machine for computing and executing code and algorithms on data')
+    context = 'the apple fruit that we eat and is sweet or the apple tree'
+    syn = disambiguate('apple', context)
     coordinates = get_coordinates(syn)
-    bow = get_related_words(syn)
+    bow = get_related_words(syn, context)
     all_other = []
     for coordinate in coordinates:
-        more_words = get_related_words(coordinate)
+        more_words = get_related_words(coordinate, context)
         all_other.append(more_words)
     intersection = get_intersection(all_other)
     bow = list(set(bow + intersection))
