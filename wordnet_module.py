@@ -19,8 +19,6 @@ def remove_special_chars(txt):
             res = res + str(ch)
     return res
 
-
-
 def get_coordinates(synset):
     coordinates = []
     hypernyms = synset.hypernyms()
@@ -58,7 +56,7 @@ def get_coordinates(synset):
 
 def get_related_words(synset, context, similarity_threshold=0.7):
     context_embedding = get_embeddings(context)
-    # Get the related synsets (hypernyms, hyponyms, part meronyms, part holonyms)
+    # Get the related synsets (hypernyms, hyponyms, part meronyms, part holonyms) no more other related words.
     related_synsets = (
             synset.hypernyms() + synset.hyponyms() + synset.part_meronyms() + synset.part_holonyms())
     # Initialize the list of related words
@@ -68,8 +66,7 @@ def get_related_words(synset, context, similarity_threshold=0.7):
         # Get the first lemma name for the related synset and replace underscores with spaces
         related_syn_token = (rsyn.lemma_names()[0]).replace('_', ' ')
         # Calculate the cosine similarity between the related synset definition and context embeddings
-        sim2 = cosine_similarity(get_embeddings(rsyn.definition()).reshape(1, -1), context_embedding.reshape(1, -1))[0][
-            0]
+        sim2 = cosine_similarity(get_embeddings(rsyn.definition()).reshape(1, -1), context_embedding.reshape(1, -1))[0][0]
         # Remove special characters and split the related synset definition into tokens
         tokens = (remove_special_chars(rsyn.definition())).split()
         # Iterate through the tokens
@@ -80,7 +77,7 @@ def get_related_words(synset, context, similarity_threshold=0.7):
                 sim1 = cosine_similarity(get_embeddings(token).reshape(1, -1),
                                          get_embeddings(related_syn_token).reshape(1, -1))[0][0]
                 # Calculate the final similarity value by combining sim1 and sim2 with different weights
-                sim = 0.55 * sim1 + 0.45 * sim2
+                sim = 0.3 * sim1 + 0.7 * sim2
                 # Check if the final similarity value is greater than the similarity threshold
                 if sim > similarity_threshold:
                     # Add the token to the related_words list if it's not already there
@@ -151,5 +148,19 @@ def try_get_related_words():
         print(w)
 try_get_related_words()
 
-
+# def try_get_related_words():
+#     # syn = disambiguate('check', 'examine (something) in order to determine its accuracy, quality, or condition, or to detect the presence of something.')
+#     # syn = disambiguate('computer', 'machine for computing and executing code and algorithms on data')
+#     syn = disambiguate('apple', 'the apple fruit that we eat and is sweet or the apple tree')
+#     coordinates = get_coordinates(syn)
+#     bow = get_related_words(syn)
+#     all_other = []
+#     for coordinate in coordinates:
+#         more_words = get_related_words(coordinate)
+#         all_other.append(more_words)
+#     intersection = get_intersection(all_other)
+#     bow = list(set(bow + intersection))
+#     for w in bow:
+#         print(w)
+# try_get_related_words()
 
