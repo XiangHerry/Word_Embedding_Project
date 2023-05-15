@@ -7,82 +7,81 @@ from utilities import get_intersection
 stopWords = list(set(stopwords.words('english')))
 
 
-def remove_special_chars(txt):
-    spChars = ',.<>/?`~-_()*&^%$#@][{};:\'"'
-    res = ''
-    for ch in txt:
-        if ch not in spChars:
-            res = res + str(ch)
-    return res
+class WordNet():
+    def remove_special_chars(txt):
+        spChars = ',.<>/?`~-_()*&^%$#@][{};:\'"'
+        res = ''
+        for ch in txt:
+            if ch not in spChars:
+                res = res + str(ch)
+        return res
 
+    # Get all meanings of a word
+    def get_meanings(word):
+        synsets = wn.synsets(word)  # Get all Synset objects related to the word
+        meanings = []
+        for synset in synsets:
+            meanings.append(synset.definition())  # Add the definition of each Synset to the list of meanings
+        return meanings
 
-# Get all meanings of a word
-def get_meanings(word):
-    synsets = wn.synsets(word)  # Get all Synset objects related to the word
-    meanings = []
-    for synset in synsets:
-        meanings.append(synset.definition())  # Add the definition of each Synset to the list of meanings
-    return meanings
+    def get_coordinates(synset):
+        coordinates = []
+        hypernyms = synset.hypernyms()
+        for hypern in hypernyms:
+            hyponyms = hypern.hyponyms()
+            for hyponym in hyponyms:
+                coordinates.append(hyponym)
+        return coordinates
 
-
-def get_coordinates(synset):
-    coordinates = []
-    hypernyms = synset.hypernyms()
-    for hypern in hypernyms:
-        hyponyms = hypern.hyponyms()
-        for hyponym in hyponyms:
-            coordinates.append(hyponym)
-    return coordinates
-
-
-def get_parent(synset):
-    parents = []
-    hypernyms = synset.hypernyms()
-    for hypernym in hypernyms:
-        parents.append(hypernym.lemma_names())
-    return parents
-
-# Get all parent synsets of a word
-def get_parents_of_all_meanings(word):
-    synsets = wn.synsets(word)  # Get all Synset objects related to the word
-    parents = []
-    for synset in synsets:
-        hypernyms = synset.hypernyms()  # Get all hypernym Synset objects of the Synset
+    def get_parent(synset):
+        parents = []
+        hypernyms = synset.hypernyms()
         for hypernym in hypernyms:
             parents.append(hypernym.lemma_names())
-    return parents
+        return parents
+
+    # Get all parent synsets of a word
+    def get_parents_of_all_meanings(word):
+        synsets = wn.synsets(word)  # Get all Synset objects related to the word
+        parents = []
+        for synset in synsets:
+            hypernyms = synset.hypernyms()  # Get all hypernym Synset objects of the Synset
+            for hypernym in hypernyms:
+                parents.append(hypernym.lemma_names())
+        return parents
+
+    # given some meaning, get a bag of related words
+    def get_related_words(synset):
+        all_text_list = [synset.definition()]
+        hypernyms = synset.hypernyms()
+        for hypern in hypernyms:
+            all_text_list.append(hypern.definition())
+        all_text = ' '.join(all_text_list)
+        tokens = (remove_special_chars(all_text)).split()
+        bow = [w for w in tokens if w not in stopWords and len(w) > 2]
+        return bow
+
+    def disambiguate(word, context):
+        context_embedding = get_embeddings(context)
+        synsets = wn.synsets(word)
+        definitions = []
+        for synset in synsets:
+            definitions.append(synset.definition())
+        mx = 0
+        idx = 0
+        sz = len(definitions)
+        k = 0
+        while k < sz:
+            definition_embedding = get_embeddings(definitions[k])
+            sim = emb_similarity(definition_embedding, context_embedding)
+            if sim > mx:
+                mx = sim
+                idx = k
+            k = k + 1
+        return synsets[idx]
 
 
-# given some meaning, get a bag of related words
-def get_related_words(synset):
-    all_text_list = [synset.definition()]
-    hypernyms = synset.hypernyms()
-    for hypern in hypernyms:
-        all_text_list.append(hypern.definition())
-    all_text = ' '.join(all_text_list)
-    tokens = (remove_special_chars(all_text)).split()
-    bow = [w for w in tokens if w not in stopWords and len(w) > 2]
-    return bow
 
-
-def disambiguate(word, context):
-    context_embedding = get_embeddings(context)
-    synsets = wn.synsets(word)
-    definitions = []
-    for synset in synsets:
-        definitions.append(synset.definition())
-    mx = 0
-    idx = 0
-    sz = len(definitions)
-    k = 0
-    while k < sz:
-        definition_embedding = get_embeddings(definitions[k])
-        sim = emb_similarity(definition_embedding, context_embedding)
-        if sim > mx:
-            mx = sim
-            idx = k
-        k = k + 1
-    return synsets[idx]
 
 
 # todo: testing Disambiguation : data ::= [(word, context)]
@@ -102,7 +101,7 @@ def try_disambiguate():
         print('disambiguate[' + word + ']' + '\n'
               + 'CONTEXT = ' + context + '\n'
               + 'SELECTED MEANING = ' + syn.definition() + '\n')
-# try_disambiguate()
+try_disambiguate()
 
 
 # todo: testing Get Related Bag of Words
@@ -118,7 +117,7 @@ def try_get_related_words():
     bow = list(set(bow + intersection))
     for w in bow:
         print(w)
-try_get_related_words()
+# try_get_related_words()
 
 
 
