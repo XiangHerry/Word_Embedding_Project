@@ -92,8 +92,8 @@ def get_related_words(synset, similarity_threshold=0.7, iteration=0, max_iterati
         return related_words
 
 
-
-def disambiguate(word, context):
+# # 1. combine these two methods, get average scores and do few texts: context has one/two or more words.
+def disambiguate_path_similarity(word, context):
     # get all senses of word.
     word_senses = wn.synsets(word)
     context_words = context.split(', ')
@@ -119,30 +119,56 @@ def disambiguate(word, context):
     return best_sense
 
 
-# def disambiguate(word, context):
-#     context_embedding = get_embeddings(context)
-#     synsets = wn.synsets(word)
-#
-#     definitions = []
-#     for synset in synsets:
-#         definitions.append(synset.definition())
-#     mx = 0
-#     idx = 0
-#     sz = len(definitions)
-#     k = 0
-#     while k < sz:
-#         definition_embedding = get_embeddings(definitions[k])
-#         sim = emb_similarity(definition_embedding, context_embedding)
-#         if sim > mx:
-#             mx = sim
-#             idx = k
-#         k = k + 1
-#     return synsets[idx]
+def disambiguate_bert_embeddings(word, context):
+    context_embedding = get_embeddings(context)
+    synsets = wn.synsets(word)
 
+    definitions = []
+    for synset in synsets:
+        definitions.append(synset.definition())
+    mx = 0
+    idx = 0
+    sz = len(definitions)
+    k = 0
+    while k < sz:
+        definition_embedding = get_embeddings(definitions[k])
+        sim = emb_similarity(definition_embedding, context_embedding)
+        if sim > mx:
+            mx = sim
+            idx = k
+        k = k + 1
+    return synsets[idx]
+
+
+def combined_disambiguate(word, context, weight=0.5):
+    # weight determines the contribution of each method, must be between 0 and 1.
+    assert 0 <= weight <= 1, "Weight must be between 0 and 1."
+
+    # disambiguation using path_similarity method
+    synset_1 = disambiguate_path_similarity(word, context)
+    # disambiguation using BERT embeddings method
+    synset_2 = disambiguate_bert_embeddings(word, context)
+
+    # get BERT embeddings for definitions of each synset
+    emb_1 = get_embeddings(synset_1.definition())
+    emb_2 = get_embeddings(synset_2.definition())
+
+    # get BERT embeddings for context
+    context_emb = get_embeddings(context)
+
+    # calculate cosine similarity between context and each synset
+    sim_1 = cosine_similarity(context_emb.reshape(1, -1), emb_1.reshape(1, -1))[0][0]
+    sim_2 = cosine_similarity(context_emb.reshape(1, -1), emb_2.reshape(1, -1))[0][0]
+
+    # combine the results with a weighted average
+    if weight * sim_1 + (1 - weight) * sim_2 > 0.5:
+        return synset_1
+    else:
+        return synset_2
 
 def try_get_related_words():
-    context = 'apples, ornages, bananas, fruit'
-    syn = disambiguate('apple', context)
+    context = 'a written work published in a print or electronic medium'
+    syn = combined_disambiguate('paper', context, weight=0.5)  # Use combined_disambiguate instead of disambiguate
     print(syn)
     bow = get_related_words(syn, 0.80)
     for w in bow:
