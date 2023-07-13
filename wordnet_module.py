@@ -10,6 +10,7 @@ from utilities import get_intersection
 import torch
 from scipy.spatial.distance import cosine
 from nltk.corpus import wordnet as wn
+
 stopWords = list(set(stopwords.words('english')))
 
 
@@ -158,6 +159,7 @@ class SemanticNet(metaclass=Singleton):
                 for syn in m.related:
                     for lem in syn.lemma_names():
                         m.bows.append(lem.replace('_', ' '))
+                m.bows = list(set(m.bows))
         for w in self.adj_meanings:
             for m in self.adj_meanings[w]:
                 m.related = self.get_coordinates(m.synset)
@@ -170,6 +172,7 @@ class SemanticNet(metaclass=Singleton):
                 for syn in m.related:
                     for lem in syn.lemma_names():
                         m.bows.append(lem.replace('_', ' '))
+                m.bows = list(set(m.bows))
         for w in self.verb_meanings:
             for m in self.verb_meanings[w]:
                 m.coordinates = self.get_coordinates(m.synset)
@@ -182,6 +185,7 @@ class SemanticNet(metaclass=Singleton):
                 for syn in m.related:
                     for lem in syn.lemma_names():
                         m.bows.append(lem.replace('_', ' '))
+                m.bows = list(set(m.bows))
         for w in self.adv_meanings:
             for m in self.adv_meanings[w]:
                 m.coordinates = self.get_coordinates(m.synset)
@@ -194,6 +198,7 @@ class SemanticNet(metaclass=Singleton):
                 for syn in m.related:
                     for lem in syn.lemma_names():
                         m.bows.append(lem.replace('_', ' '))
+                m.bows = list(set(m.bows))
 
     # this function get all hyponyms of hypernyms of one synset.
     def get_coordinates(self, synset):
@@ -235,7 +240,7 @@ class SemanticNet(metaclass=Singleton):
 #     else:
 #         return None
 #
-# 
+#
 # def get_related_words(synset, similarity_threshold=0.7, iteration=0, max_iterations=10):
 #     related_words = []
 #     # Add synonyms to the list of related words
@@ -370,20 +375,52 @@ class SemanticNet(metaclass=Singleton):
 #
 # # try_get_related_words()
 
+
 semNet = SemanticNet()
 
 
-def try_get_bow():
-    while True:
-        word_meaning_num = (input('Enter word and meaning number: ')).split(' ')
-        word = word_meaning_num[0]
-        mnum = int(word_meaning_num[1])
-        synsets = wn.synsets(word)
-        # bow = get_related_words(synsets[mnum - 1], 0.80)
-        bow = semNet.get_bows(synsets[mnum - 1], 0.80)
-        for w in bow:
-            print(w)
+def create_context_vector(tokens):
+    v = sum([get_embeddings(tok) for tok in tokens])
+    # sz = len(tokens)
+    # if sz == 0:
+    #     return 0
+    # weight = 1.0 / sz
+    # v = weight * get_embeddings(tokens[0])
+    # k = 1
+    # while k < sz:
+    #     # v = v + weight * get_embeddings(tokens[k])
+    #     v = v + get_embeddings(tokens[k])
+    #     k = k + 1
+    return v
 
-try_get_bow()
+
+def show_all_meanings(contextVector):
+    while True:
+        token = input('Enter word: ')
+        ms = semNet.noun_meanings[token]
+        context_vector = create_context_vector(contextVector)
+        mx = 0
+        dfn = ''
+        for m in ms:
+            sim = emb_similarity(sum(get_embeddings(m.bows)), context_vector)
+            if sim > mx:
+                mx = sim
+                dfn = m.definition
+        print('=> ' + dfn)
+
+
+show_all_meanings(['program', 'computer', 'software', 'programming'])
+# def try_get_bow():
+#     while True:
+#         word_meaning_num = (input('Enter word and meaning number: ')).split(' ')
+#         word = word_meaning_num[0]
+#         mnum = int(word_meaning_num[1])
+#         synsets = wn.synsets(word)
+#         # bow = get_related_words(synsets[mnum - 1], 0.80)
+#         bow = semNet.get_bows(synsets[mnum - 1], 0.80)
+#         for w in bow:
+#             print(w)
+#
+# try_get_bow()
 
 

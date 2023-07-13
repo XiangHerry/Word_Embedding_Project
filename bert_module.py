@@ -1,27 +1,31 @@
 # Import required libraries from transformers package
 from transformers import BertTokenizer, BertModel
-# rom sentence_transformers import SentenceTransformer, util
-# import torch.nn.functional as F
-from functools import lru_cache
+from sentence_transformers import SentenceTransformer, util
+# from functools import lru_cache
 import torch
 # import bert
 
 # Create a cosine similarity object from PyTorch
-cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+# cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+cos = torch.nn.CosineSimilarity(dim=0)
 
 # Load the pre-trained BERT model and tokenizer from Hugging Face Transformers
 model = BertModel.from_pretrained("bert-large-uncased")
 tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
+
+model2 = SentenceTransformer('all-MiniLM-L6-v2')
+
+
 def get_embeddings(text):
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    # Compute the embeddings
-    with torch.no_grad():
-        outputs = model(**inputs)
-    embeddings = outputs.last_hidden_state[:, 0, :]
-    return embeddings
-
-
+    emb2 = model2.encode(text, convert_to_tensor=True)
+    return emb2
+    # inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    # # Compute the embeddings
+    # with torch.no_grad():
+    #     outputs = model(**inputs)
+    # embeddings = outputs.last_hidden_state[:, 0, :]
+    # return embeddings
 
 
 def emb_similarity(embeddings1, embeddings2):
