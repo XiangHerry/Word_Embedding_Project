@@ -1,4 +1,5 @@
 import nltk
+from sklearn.feature_extraction.text import TfidfVectorizer
 nltk.download('stopwords')
 from sklearn.metrics.pairwise import cosine_similarity
 import functools
@@ -10,6 +11,7 @@ from utilities import get_intersection
 import torch
 from scipy.spatial.distance import cosine
 from nltk.corpus import wordnet as wn
+import numpy as np
 
 stopWords = list(set(stopwords.words('english')))
 
@@ -37,7 +39,6 @@ class Concept():
 
 class SemanticNet(metaclass=Singleton):
     def __init__(self):
-
         self.noun_meanings = dict()
         self.verb_meanings = dict()
         self.adj_meanings = dict()
@@ -100,6 +101,88 @@ class SemanticNet(metaclass=Singleton):
                 self.adv_meanings[w].append(c)
         print()
 
+    # newly added function.
+
+
+    def bag_of_words_to_embedding(self, bag_of_words):
+        # Start with a zero vector
+        total_embedding = torch.zeros([384])  # Assumes the embedding size is 384 (like BERT)
+
+
+        # Remove special characters and stop words
+        bag_of_words = [remove_special_chars(word) for word in bag_of_words if word not in stopWords]
+
+        # Initialize the TfidfVectorizer
+        tfidf_vectorizer = TfidfVectorizer()
+
+        # Compute TF-IDF scores
+        tfidf_scores = tfidf_vectorizer.fit_transform([' '.join(bag_of_words)])
+
+        # Get the list of words in the vocabulary
+        words = tfidf_vectorizer.get_feature_names_out()
+
+        # For each word in the bag of words
+        for word in bag_of_words:
+            # Compute the word's embedding
+            word_embedding = get_embeddings(word)
+
+            # If the word appears in the document
+            if word in words:
+                # Get the TF-IDF score
+                score = tfidf_scores[0, list(words).index(word)]
+                # Add the word's embedding to the total embedding, weighted by the TF-IDF score
+                total_embedding += word_embedding * score
+
+        return total_embedding
+
+    def test_bags_of_words(self):
+        # below is verb tests.
+        similar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["eat"][0]]
+        dissimilar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["jog"][2]]
+
+        # below is noun test.
+        # similar_meanings = [self.noun_meanings["dog"][0], self.noun_meanings["cat"][0]]
+        # dissimilar_meanings = [self.noun_meanings["dog"][0], self.noun_meanings["car"][0]]
+
+        # below is noun test2
+        # similar_meanings = [self.noun_meanings["apple"][0], self.noun_meanings["orange"][0]]
+        # dissimilar_meanings = [self.noun_meanings["apple"][0], self.noun_meanings["car"][0]]
+
+        # below is adverb test.
+        # similar_meanings = [self.adv_meanings["quickly"][0], self.adv_meanings["swiftly"][0]]
+        # dissimilar_meanings = [self.adv_meanings["quickly"][0], self.adv_meanings["slowly"][0]]
+
+        # below is adjective test.
+        # similar_meanings = [self.adj_meanings["happy"][0], self.adj_meanings["joyful"][0]]
+        # dissimilar_meanings = [self.adj_meanings["happy"][0], self.adj_meanings["sad"][0]]
+
+        # For each pair of similar meanings
+        for meaning1 in similar_meanings:
+            for meaning2 in similar_meanings:
+                if meaning1 != meaning2:
+                    # Compute the embeddings of the bags of words
+                    embedding1 = self.bag_of_words_to_embedding(meaning1.bows)
+                    embedding2 = self.bag_of_words_to_embedding(meaning2.bows)
+
+                    # Compute the similarity between the embeddings
+                    similarity = emb_similarity(embedding1, embedding2)
+
+                    print(f"Similarity between {meaning1.synset} and {meaning2.synset}: {similarity}")
+
+        for meaning1 in dissimilar_meanings:
+            for meaning2 in dissimilar_meanings:
+                if meaning1 != meaning2:
+                    # Compute the embeddings of the bags of words
+                    embedding1 = self.bag_of_words_to_embedding(meaning1.bows)
+                    embedding2 = self.bag_of_words_to_embedding(meaning2.bows)
+
+                    # Compute the similarity between the embeddings
+                    similarity = emb_similarity(embedding1, embedding2)
+
+                    print(f"Similarity between {meaning1.synset} and {meaning2.synset}: {similarity}")
+
+
+
     def antonyms_for_synset(self, synset):
         res = []
         append1 = res.append
@@ -150,7 +233,8 @@ class SemanticNet(metaclass=Singleton):
     def compute_related(self):
         for w in self.noun_meanings:
             for m in self.noun_meanings[w]:
-                m.related = self.get_coordinates(m.synset)
+                # seems redundant.
+                # m.related = self.get_coordinates(m.synset)
                 m_related = self.get_all_related(m.synset)
                 for mr in m_related:
                     m.related.append(mr)
@@ -210,9 +294,9 @@ class SemanticNet(metaclass=Singleton):
                 coordinates.append(hyponym)
         return coordinates
 
-
-
-
+# # newly added function.
+semantic_net = SemanticNet()
+semantic_net.test_bags_of_words()
 
 # def get_bows(self, synset, similarity_threshold=0.7):
 #     defn = synset.definition()
@@ -376,7 +460,7 @@ class SemanticNet(metaclass=Singleton):
 # # try_get_related_words()
 
 
-semNet = SemanticNet()
+# semNet = SemanticNet()
 
 
 def create_context_vector(tokens):
@@ -394,22 +478,22 @@ def create_context_vector(tokens):
     return v
 
 
-def show_all_meanings(contextVector):
-    while True:
-        token = input('Enter word: ')
-        ms = semNet.noun_meanings[token]
-        context_vector = create_context_vector(contextVector)
-        mx = 0
-        dfn = ''
-        for m in ms:
-            sim = emb_similarity(sum(get_embeddings(m.bows)), context_vector)
-            if sim > mx:
-                mx = sim
-                dfn = m.definition
-        print('=> ' + dfn)
-
-
-show_all_meanings(['program', 'computer', 'software', 'programming'])
+# def show_all_meanings(contextVector):
+#     while True:
+#         token = input('Enter word: ')
+#         ms = semNet.noun_meanings[token]
+#         context_vector = create_context_vector(contextVector)
+#         mx = 0
+#         dfn = ''
+#         for m in ms:
+#             sim = emb_similarity(sum(get_embeddings(m.bows)), context_vector)
+#             if sim > mx:
+#                 mx = sim
+#                 dfn = m.definition
+#         print('=> ' + dfn)
+#
+#
+# show_all_meanings(['program', 'computer', 'software', 'programming'])
 # def try_get_bow():
 #     while True:
 #         word_meaning_num = (input('Enter word and meaning number: ')).split(' ')

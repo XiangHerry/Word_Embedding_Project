@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer, util
 # from functools import lru_cache
 import torch
 # import bert
+from collections import Counter
 
 # Create a cosine similarity object from PyTorch
 # cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -20,12 +21,7 @@ model2 = SentenceTransformer('all-MiniLM-L6-v2')
 def get_embeddings(text):
     emb2 = model2.encode(text, convert_to_tensor=True)
     return emb2
-    # inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    # # Compute the embeddings
-    # with torch.no_grad():
-    #     outputs = model(**inputs)
-    # embeddings = outputs.last_hidden_state[:, 0, :]
-    # return embeddings
+
 
 
 def emb_similarity(embeddings1, embeddings2):
@@ -38,6 +34,12 @@ def text_similarity(text1, text2):
     embeddings2 = get_embeddings(text2)
     cosine_similarity = cos(embeddings1, embeddings2)
     return cosine_similarity.item()
+
+
+
+
+
+
 
 
 
