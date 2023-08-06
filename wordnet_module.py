@@ -101,55 +101,58 @@ class SemanticNet(metaclass=Singleton):
                 self.adv_meanings[w].append(c)
         print()
 
-    # newly added function.
-
-
     def bag_of_words_to_embedding(self, bag_of_words):
-        # Start with a zero vector
-        total_embedding = torch.zeros([384])  # Assumes the embedding size is 384 (like BERT)
+        return sum([get_embeddings(w) for w in bag_of_words])
 
-
-        # Remove special characters and stop words
-        bag_of_words = [remove_special_chars(word) for word in bag_of_words if word not in stopWords]
-
-        # Initialize the TfidfVectorizer
-        tfidf_vectorizer = TfidfVectorizer()
-
-        # Compute TF-IDF scores
-        tfidf_scores = tfidf_vectorizer.fit_transform([' '.join(bag_of_words)])
-
-        # Get the list of words in the vocabulary
-        words = tfidf_vectorizer.get_feature_names_out()
-
-        # For each word in the bag of words
-        for word in bag_of_words:
-            # Compute the word's embedding
-            word_embedding = get_embeddings(word)
-
-            # If the word appears in the document
-            if word in words:
-                # Get the TF-IDF score
-                score = tfidf_scores[0, list(words).index(word)]
-                # Add the word's embedding to the total embedding, weighted by the TF-IDF score
-                total_embedding += word_embedding * score
-
-        return total_embedding
+    # newly added function.
+    # def bag_of_words_to_embedding(self, bag_of_words):
+    #     # Start with a zero vector
+    #     total_embedding = torch.zeros([384])  # Assumes the embedding size is 384 (like BERT)
+    #
+    #     # Remove special characters and stop words
+    #     bag_of_words = [remove_special_chars(word) for word in bag_of_words if word not in stopWords]
+    #
+    #     # Initialize the TfidfVectorizer
+    #     tfidf_vectorizer = TfidfVectorizer()
+    #
+    #     # Compute TF-IDF scores
+    #     tfidf_scores = tfidf_vectorizer.fit_transform([' '.join(bag_of_words)])
+    #
+    #     # Get the list of words in the vocabulary
+    #     words = tfidf_vectorizer.get_feature_names_out()
+    #
+    #     # For each word in the bag of words
+    #     for word in bag_of_words:
+    #         # Compute the word's embedding
+    #         word_embedding = get_embeddings(word)
+    #
+    #         # If the word appears in the document
+    #         if word in words:
+    #             # Get the TF-IDF score
+    #             score = tfidf_scores[0, list(words).index(word)]
+    #             # Add the word's embedding to the total embedding, weighted by the TF-IDF score
+    #             total_embedding += word_embedding * score
+    #
+    #     return total_embedding
 
     def test_bags_of_words(self):
         # below is verb tests.
-        similar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["eat"][0]]
-        dissimilar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["jog"][2]]
+        # similar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["jog"][2]]
+        # dissimilar_meanings = [self.verb_meanings["run"][0], self.verb_meanings["eat"][0]]
 
-        # below is noun test.
-        # similar_meanings = [self.noun_meanings["dog"][0], self.noun_meanings["cat"][0]]
-        # dissimilar_meanings = [self.noun_meanings["dog"][0], self.noun_meanings["car"][0]]
+        # below is noun test
+        dog1 = self.noun_meanings["dog"][0]
+        cat1 = self.noun_meanings["cat"][0]
+        car1 = self.noun_meanings["car"][0]
+        similar_meanings = [dog1, cat1]
+        dissimilar_meanings = [cat1, car1]
 
         # below is noun test2
         # similar_meanings = [self.noun_meanings["apple"][0], self.noun_meanings["orange"][0]]
         # dissimilar_meanings = [self.noun_meanings["apple"][0], self.noun_meanings["car"][0]]
 
         # below is adverb test.
-        # similar_meanings = [self.adv_meanings["quickly"][0], self.adv_meanings["swiftly"][0]]
+        # similar_meanings = [self.adv_meanings["quickly"][0], self.adv_meanings["loudly"][0]]
         # dissimilar_meanings = [self.adv_meanings["quickly"][0], self.adv_meanings["slowly"][0]]
 
         # below is adjective test.
@@ -205,7 +208,12 @@ class SemanticNet(metaclass=Singleton):
         rs8 = {syn.name() for syn in synset.substance_holonyms() if syn is not None}
         rs9 = {syn.name() for syn in synset.member_meronyms() if syn is not None}
         rs10 = {syn.name() for syn in synset.part_meronyms() if syn is not None}
-        rs11 = {syn.name() for syn in synset.substance_meronyms() if syn is not None}
+        rs11 = {syn.name() for syn in synset.hypernyms() if syn is not None}
+        rs12 = {syn.name() for syn in synset.hyponyms() if syn is not None}
+        rs13 = {syn.name() for syn in synset.substance_meronyms() if syn is not None}
+        r14 = self.get_coordinates(synset)
+        for c in r14:
+            related.append(c)
         for r in rs1:
             related.append(wn.synset(r))
         for r in rs2:
@@ -228,13 +236,15 @@ class SemanticNet(metaclass=Singleton):
             related.append(wn.synset(r))
         for r in rs11:
             related.append(wn.synset(r))
+        for r in rs12:
+            related.append(wn.synset(r))
+        for r in rs13:
+            related.append(wn.synset(r))
         return related
 
     def compute_related(self):
         for w in self.noun_meanings:
             for m in self.noun_meanings[w]:
-                # seems redundant.
-                # m.related = self.get_coordinates(m.synset)
                 m_related = self.get_all_related(m.synset)
                 for mr in m_related:
                     m.related.append(mr)
@@ -246,11 +256,7 @@ class SemanticNet(metaclass=Singleton):
                 m.bows = list(set(m.bows))
         for w in self.adj_meanings:
             for m in self.adj_meanings[w]:
-                m.related = self.get_coordinates(m.synset)
-                m.related = self.get_coordinates(m.synset)
-                m_related = self.get_all_related(m.synset)
-                for mr in m_related:
-                    m.related.append(mr)
+                m.related = self.get_all_related(m.synset)
                 for lem in m.synset.lemma_names():
                     m.bows.append(lem.replace('_', ' '))
                 for syn in m.related:
@@ -259,11 +265,7 @@ class SemanticNet(metaclass=Singleton):
                 m.bows = list(set(m.bows))
         for w in self.verb_meanings:
             for m in self.verb_meanings[w]:
-                m.coordinates = self.get_coordinates(m.synset)
-                m.related = self.get_coordinates(m.synset)
-                m_related = self.get_all_related(m.synset)
-                for mr in m_related:
-                    m.related.append(mr)
+                m.related = self.get_all_related(m.synset)
                 for lem in m.synset.lemma_names():
                     m.bows.append(lem.replace('_', ' '))
                 for syn in m.related:
@@ -272,11 +274,7 @@ class SemanticNet(metaclass=Singleton):
                 m.bows = list(set(m.bows))
         for w in self.adv_meanings:
             for m in self.adv_meanings[w]:
-                m.coordinates = self.get_coordinates(m.synset)
-                m.related = self.get_coordinates(m.synset)
-                m_related = self.get_all_related(m.synset)
-                for mr in m_related:
-                    m.related.append(mr)
+                m.related = self.get_all_related(m.synset)
                 for lem in m.synset.lemma_names():
                     m.bows.append(lem.replace('_', ' '))
                 for syn in m.related:
