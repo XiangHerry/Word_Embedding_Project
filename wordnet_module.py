@@ -1,4 +1,5 @@
 import nltk
+import numpy as np  # For handling arrays
 from sklearn.feature_extraction.text import TfidfVectorizer
 nltk.download('stopwords')
 from sklearn.metrics.pairwise import cosine_similarity
@@ -9,7 +10,6 @@ from nltk.corpus import stopwords
 from bert_module import get_embeddings, emb_similarity
 from utilities import get_intersection
 import torch
-from scipy.spatial.distance import cosine
 from nltk.corpus import wordnet as wn
 import numpy as np
 
@@ -26,12 +26,12 @@ def remove_special_chars(txt):
 
 
 class Concept():
-    def __init__(self, pos, synset, definition, hyponyms, hyernyms):
+    def __init__(self, pos, synset, definition, hyponyms, hypernyms):
         self.pos = pos
         self.definition = definition
         self.synset = synset
         self.hyponyms = hyponyms
-        self.hypernyms = hyernyms
+        self.hypernyms = hypernyms
         self.related = []
         self.bows = []
         self.embedding = None
@@ -61,6 +61,8 @@ class SemanticNet(metaclass=Singleton):
         return list({syn.name() for syn in synset.hyponyms() if syn is not None})
 
     def read_synsets(self):
+        # 假设 all_text 是包含所有需要适配的文本的列表
+
         all_words = wn.words()
         print('Reading semantic network')
         count = 0
@@ -71,12 +73,14 @@ class SemanticNet(metaclass=Singleton):
                 count = 0
                 print('.', end='')
 
+            # get all words in noun colletions.
             nouns_list = wn.synsets(w, pos=wn.NOUN)
             verbs_list = wn.synsets(w, pos=wn.VERB)
             adjs_list = wn.synsets(w, pos=wn.ADJ)
             advs_list = wn.synsets(w, pos=wn.ADV)
 
             if len(nouns_list) > 0:
+                # append all meanings, hypernyms and hyponyms
                 self.noun_meanings[w] = []
             for syn in nouns_list:
                 c = Concept('NOUN', syn, syn.definition(), self.get_hypernyms(syn), self.get_hyponyms(syn))
@@ -101,8 +105,34 @@ class SemanticNet(metaclass=Singleton):
                 self.adv_meanings[w].append(c)
         print()
 
+    # def bag_of_words_to_embedding(self, bag_of_words):
+    #     return sum([get_embeddings(w) for w in bag_of_words])
+    # Assumes tfidf_vectorizer is pre-fitted on the corpus
+
     def bag_of_words_to_embedding(self, bag_of_words):
-        return sum([get_embeddings(w) for w in bag_of_words])
+        # initialize a tokenizer.
+        tfidf_vectorizer = TfidfVectorizer()
+        # remove special characters from bag of words.
+        processed_words = [remove_special_chars(w) for w in bag_of_words]
+        # fit and transform to a numpy array.
+        # [[0.5, 0.25, 0.25]]
+        tfidf_scores = tfidf_vectorizer.fit_transform([' '.join(processed_words)]).toarray()
+        # total_embedding in the same size of the first processed_words.
+        total_embedding = torch.zeros_like(get_embeddings(processed_words[0]))
+        # print(feature_names)  # output: ['apple', 'banana', 'cherry']
+        feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
+
+        for word in processed_words:
+            # Use numpy where function to find the index of the word in feature_names
+            indices = np.where(feature_names == word)[0]
+            if len(indices) > 0:
+                index = indices[0]
+                score = tfidf_scores[0, index]
+            else:
+                score = 0  # if the word is not in feature_names, the score is 0
+            word_embedding = get_embeddings(word)
+            total_embedding += word_embedding * score
+        return total_embedding
 
     # newly added function.
     # def bag_of_words_to_embedding(self, bag_of_words):
@@ -187,6 +217,7 @@ class SemanticNet(metaclass=Singleton):
 
 
     def antonyms_for_synset(self, synset):
+        # get the antonyms list
         res = []
         append1 = res.append
         for lem in synset.lemmas():
